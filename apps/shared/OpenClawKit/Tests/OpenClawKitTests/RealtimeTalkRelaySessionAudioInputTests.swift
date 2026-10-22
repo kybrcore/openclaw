@@ -245,19 +245,17 @@ struct RealtimeTalkRelaySessionAudioInputTests {
         await resumed.value
     }
 
-    @Test func `a ten second append stall keeps the call`() async throws {
-        // Busy Gateways and network handoffs stall appends for seconds and then recover.
-        let stallMs: Double = 10000
-        let requests = RealtimeRelayStartupRequestLog()
+    @Test func `audio appends give a stalled Gateway thirty seconds to answer`() async throws {
+        // The transport owns the clock and fails a request at this deadline; the Gateway answers
+        // appends in order, so this deadline is the relay's liveness window.
+        let (appendDeadlines, appendDeadline) = AsyncStream.makeStream(of: Double.self)
         var terminations: [RealtimeTalkRelayTermination] = []
         let session = RealtimeTalkRelaySession(
             transport: RealtimeTalkRelayTransport(
                 subscribeServerEvents: { _ in AsyncStream { $0.finish() } },
-                request: { method, params, timeoutMs in
-                    await requests.record(method: method, params: params)
-                    // Like the Gateway transports, a deadline that ends inside the stall times out.
-                    guard method != "talk.session.appendAudio" || timeoutMs > stallMs else {
-                        throw URLError(.timedOut)
+                request: { method, _, timeoutMs in
+                    if method == "talk.session.appendAudio" {
+                        appendDeadline.yield(timeoutMs)
                     }
                     return Data("{\"ok\":true}".utf8)
                 }),
@@ -273,9 +271,14 @@ struct RealtimeTalkRelaySessionAudioInputTests {
 
         let send = try #require(session._test_enqueueMicrophoneFrame(Data([0x01, 0x02])))
         await send.value
+        appendDeadline.finish()
 
+        var deadlinesMs: [Double] = []
+        for await timeoutMs in appendDeadlines {
+            deadlinesMs.append(timeoutMs)
+        }
+        #expect(deadlinesMs == [30000])
         #expect(terminations.isEmpty)
-        #expect(await requests.snapshot().map(\.method) == ["talk.session.appendAudio"])
     }
 
     @Test func `active audio request and response failures share the input failure owner`() async throws {
