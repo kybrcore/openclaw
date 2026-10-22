@@ -72,6 +72,64 @@ struct RealtimeTalkRelaySessionAudioInputTests {
         #expect(recorded.first?.params?["sessionId"]?.stringValue == "relay-1")
     }
 
+    @Test(arguments: [false, true])
+    func `relay failure detaches accepted work when the Gateway supports it`(
+        supportsCloseDisposition: Bool) async throws
+    {
+        let requests = RealtimeRelayStartupRequestLog()
+        let terminationObserved = RealtimeRelayTestSignal<RealtimeTalkRelayTermination>()
+        let audioCapture = TestRealtimeTalkAudioCapture()
+        let session = RealtimeTalkRelaySession(
+            transport: RealtimeTalkRelayTransport(
+                subscribeServerEvents: { _ in AsyncStream { _ in } },
+                request: { method, params, _ in
+                    await requests.record(method: method, params: params)
+                    return Data("{\"ok\":true}".utf8)
+                },
+                supportsCloseDisposition: { supportsCloseDisposition }),
+            options: .init(sessionKey: "main", provider: "openai", model: nil, voice: nil),
+            audioCapture: audioCapture,
+            pcmPlayer: UnusedPCMStreamingAudioPlayer(),
+            onStatus: { _ in },
+            onTermination: { terminationObserved.send($0) },
+            onSpeakingChanged: { _ in })
+        session._test_setRelaySessionId("relay-1")
+        try session._test_startMicrophonePump()
+
+        audioCapture.fail("Realtime microphone became unavailable: no input")
+        _ = try await terminationObserved.next("microphone failure termination")
+        try await requests.waitForRequestCount(1)
+
+        let recorded = await requests.snapshot()
+        #expect(recorded.map(\.method) == ["talk.session.close"])
+        // Older Gateways reject unknown close fields, so they keep the legacy aborting close.
+        #expect(recorded.first?.params?["disposition"]?.stringValue == (supportsCloseDisposition ? "detach" : nil))
+    }
+
+    @Test func `explicit stop keeps the aborting close`() async throws {
+        let requests = RealtimeRelayStartupRequestLog()
+        let session = RealtimeTalkRelaySession(
+            transport: RealtimeTalkRelayTransport(
+                subscribeServerEvents: { _ in AsyncStream { _ in } },
+                request: { method, params, _ in
+                    await requests.record(method: method, params: params)
+                    return Data("{\"ok\":true}".utf8)
+                },
+                supportsCloseDisposition: { true }),
+            options: .init(sessionKey: "main", provider: "openai", model: nil, voice: nil),
+            audioCapture: TestRealtimeTalkAudioCapture(),
+            pcmPlayer: UnusedPCMStreamingAudioPlayer(),
+            onStatus: { _ in },
+            onSpeakingChanged: { _ in })
+        session._test_setRelaySessionId("relay-1")
+
+        try await session.stopAndWait()
+
+        let recorded = await requests.snapshot()
+        #expect(recorded.map(\.method) == ["talk.session.close"])
+        #expect(recorded.first?.params?["disposition"] == nil)
+    }
+
     @Test func `stop and pause retire buffered audio while resume admits a fresh frame`() async throws {
         let stoppedRequests = ControlledRealtimeAudioRequests()
         var stoppedStatuses: [String] = []
