@@ -75,6 +75,17 @@ execution placement remain independently enforced. See
 - `session`: one container per session.
 - `shared`: one container shared by all sandboxed sessions (per-agent `docker`/`ssh`/`browser` overrides are ignored under this scope).
 
+A `session` scope runtime belongs to the session key (for example
+`agent:main:discord:channel:123456`; see
+[Channel routing](/channels/channel-routing)), not to the current transcript.
+`/new` and `/reset` start a new transcript under the same key, so the next turn
+reuses the same container and private sandbox workspace, including files
+written there. To start the chat in a fresh environment, run
+`openclaw sandbox recreate --session "<scope key>"` with the key shown by
+`openclaw sandbox list` (see [Sandbox CLI](/cli/sandbox)). Managed project
+sessions differ: archive, reset, and deletion retire their runtimes (see
+[Workspace access](/gateway/sandboxing/workspace-access)).
+
 Required sandboxes with proven Gateway-profile creators use that profile as
 their isolation boundary. Different guests on the same agent receive separate
 environments and workspaces, regardless of configured scope. Sessions created

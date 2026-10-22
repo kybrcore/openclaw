@@ -32,7 +32,7 @@ Optional sandboxing for the embedded agent. See [Sandboxing](/gateway/sandboxing
           readOnlyRoot: true,
           tmpfs: ["/tmp", "/var/tmp", "/run"],
           network: "none",
-          user: "1000:1000",
+          user: "1000:1000", // default: owner uid:gid of the mounted workspace
           capDrop: ["ALL"],
           env: { LANG: "C.UTF-8" },
           setupCommand: "apt-get update && apt-get install -y git curl jq",
