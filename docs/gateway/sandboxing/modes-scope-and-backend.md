@@ -80,10 +80,11 @@ A `session` scope runtime belongs to the session key (for example
 [Channel routing](/channels/channel-routing)), not to the current transcript.
 `/new` and `/reset` start a new transcript under the same key, so the next turn
 reuses the same container and private sandbox workspace, including files
-written there. To start the chat in a fresh environment, run
+written there. To get a fresh container, run
 `openclaw sandbox recreate --session "<scope key>"` with the key shown by
-`openclaw sandbox list` (see [Sandbox CLI](/cli/sandbox)). Managed project
-sessions differ: archive, reset, and deletion retire their runtimes (see
+`openclaw sandbox list` (see [Sandbox CLI](/cli/sandbox)). Recreation replaces
+the container only; files in the host-backed sandbox workspace remain. Managed
+project sessions differ: archive, reset, and deletion retire their runtimes (see
 [Workspace access](/gateway/sandboxing/workspace-access)).
 
 Required sandboxes with proven Gateway-profile creators use that profile as

@@ -107,6 +107,10 @@ service environment (see [Environment variables](/help/environment)), not only
 in your interactive shell, then restart the Gateway.
 `OPENCLAW_DOCKER_SOCKET` is read only by the Docker Gateway setup script.
 
+Set only one of `DOCKER_HOST` and `DOCKER_CONTEXT` for the Gateway: when both
+are set, current builds pin the `DOCKER_CONTEXT` daemon, unlike the Docker CLI
+([#180311](https://github.com/openclaw/openclaw/issues/180311)).
+
 When that endpoint is a local Unix socket, OpenClaw records the socket and the
 daemon ID in the sandbox registry when it uses a runtime, and addresses that
 daemon explicitly from then on. If the Gateway later resolves a different
