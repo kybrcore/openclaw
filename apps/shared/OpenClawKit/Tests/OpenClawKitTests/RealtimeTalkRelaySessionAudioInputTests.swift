@@ -130,6 +130,32 @@ struct RealtimeTalkRelaySessionAudioInputTests {
         #expect(recorded.first?.params?["disposition"] == nil)
     }
 
+    @Test func `a failure detected by the owner detaches accepted work`() async throws {
+        // macOS restarts the microphone itself and ends the relay when the restart fails.
+        let requests = RealtimeRelayStartupRequestLog()
+        let session = RealtimeTalkRelaySession(
+            transport: RealtimeTalkRelayTransport(
+                subscribeServerEvents: { _ in AsyncStream { _ in } },
+                request: { method, params, _ in
+                    await requests.record(method: method, params: params)
+                    return Data("{\"ok\":true}".utf8)
+                },
+                supportsCloseDisposition: { true }),
+            options: .init(sessionKey: "main", provider: "openai", model: nil, voice: nil),
+            audioCapture: TestRealtimeTalkAudioCapture(),
+            pcmPlayer: UnusedPCMStreamingAudioPlayer(),
+            onStatus: { _ in },
+            onSpeakingChanged: { _ in })
+        session._test_setRelaySessionId("relay-1")
+
+        session.stopAfterFailure()
+        try await requests.waitForRequestCount(1)
+
+        let recorded = await requests.snapshot()
+        #expect(recorded.map(\.method) == ["talk.session.close"])
+        #expect(recorded.first?.params?["disposition"]?.stringValue == "detach")
+    }
+
     @Test func `stop and pause retire buffered audio while resume admits a fresh frame`() async throws {
         let stoppedRequests = ControlledRealtimeAudioRequests()
         var stoppedStatuses: [String] = []

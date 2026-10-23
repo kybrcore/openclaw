@@ -457,6 +457,12 @@ public final class RealtimeTalkRelaySession {
         try await self.serverClose?.task.value
     }
 
+    /// Ends the relay after a failure its owner detected, such as a microphone that cannot
+    /// restart. Like the session's own failure cleanup, the close keeps accepted agent work.
+    public func stopAfterFailure() {
+        self.close(sendClose: true, detachAcceptedWork: true)
+    }
+
     /// Failure cleanup passes `detachAcceptedWork` so an accepted agent consult finishes and its
     /// answer stays in the conversation; only an explicit stop cancels that work.
     private func close(sendClose: Bool, detachAcceptedWork: Bool = false) {
@@ -520,8 +526,9 @@ public final class RealtimeTalkRelaySession {
         }
         let task = Task { [transport] in
             var payload = ["sessionId": AnyCodable(relaySessionId)]
-            // A failed detach close leaves the relay to the Gateway's disconnect cleanup, which
-            // also detaches; the legacy abort close had the same failure window.
+            // A close that times out was already sent and still applies once the Gateway recovers,
+            // and a dropped socket detaches through the Gateway's disconnect cleanup. Only a close
+            // that never reaches a still-open socket leaves the relay to its TTL, as before.
             if detachAcceptedWork, await transport.supportsCloseDisposition() {
                 payload["disposition"] = AnyCodable("detach")
             }

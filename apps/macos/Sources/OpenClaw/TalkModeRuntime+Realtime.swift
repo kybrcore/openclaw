@@ -431,10 +431,12 @@ extension TalkModeRuntime {
         let activeDuration = realtimeSessionReadyAt.map { Date().timeIntervalSince($0) } ?? 0
         realtimeRelayGeneration &+= 1
         let terminalGeneration = realtimeRelayGeneration
-        // Session-owned terminations close before signalling; runtime-initiated ones do not.
-        // stop() is idempotent, so closing here keeps a dead relay and its event subscription
-        // from outliving their owner while recovery starts a replacement session.
-        await MainActor.run { session.stop() }
+        // Session-owned terminations close before signalling; runtime-initiated ones (a microphone
+        // that cannot restart) do not. Closing is idempotent, so closing here keeps a dead relay and
+        // its event subscription from outliving their owner while recovery starts a replacement
+        // session. Only runtime-detected failures reach this point still open, so the close keeps
+        // accepted agent work.
+        await MainActor.run { session.stopAfterFailure() }
         guard self.ownsRealtimeRelay(terminalGeneration, session) else { return }
         realtimeSession = nil
         realtimeSessionReadyAt = nil
